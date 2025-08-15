@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:io' show File;
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 
 void main() {
@@ -145,8 +146,28 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
+  // Функция для определения наличия SVG в тексте
+  bool _containsSvg(String content) {
+    return content.contains('<svg') && content.contains('</svg>');
+  }
+
+  // Функция для извлечения SVG из текста
+  String? _extractSvg(String content) {
+    final svgRegExp = RegExp(r'<svg[^>]*>.*?</svg>', dotAll: true);
+    final match = svgRegExp.firstMatch(content);
+    return match?.group(0);
+  }
+
+  // Функция для получения текста без SVG
+  String _getTextWithoutSvg(String content) {
+    final svgRegExp = RegExp(r'<svg[^>]*>.*?</svg>', dotAll: true);
+    return content.replaceAll(svgRegExp, '[SVG изображение]').trim();
+  }
+
   Widget _buildMessage(Message msg) {
     final isUser = msg.role == 'user';
+    final containsSvg = _containsSvg(msg.content);
+    
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -158,14 +179,77 @@ class _ChatScreenState extends State<ChatScreen> {
               : Colors.grey.shade200,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Text(
-          msg.content,
-          style: TextStyle(
-            color: Colors.black87,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Отображение текста (если есть)
+            if (_getTextWithoutSvg(msg.content).isNotEmpty)
+              Text(
+                _getTextWithoutSvg(msg.content),
+                style: TextStyle(
+                  color: Colors.black87,
+                ),
+              ),
+            
+            // Отображение SVG (если есть)
+            if (containsSvg) ...[
+              if (_getTextWithoutSvg(msg.content).isNotEmpty)
+                const SizedBox(height: 8),
+              Container(
+                constraints: const BoxConstraints(
+                  maxWidth: 300,
+                  maxHeight: 300,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.all(8),
+                child: _buildSvgWidget(_extractSvg(msg.content)!),
+              ),
+            ],
+          ],
         ),
       ),
     );
+  }
+
+  Widget _buildSvgWidget(String svgContent) {
+    try {
+      return SvgPicture.string(
+        svgContent,
+        fit: BoxFit.contain,
+        placeholderBuilder: (context) => Container(
+          width: 50,
+          height: 50,
+          color: Colors.grey.shade200,
+          child: const Icon(Icons.image, color: Colors.grey),
+        ),
+      );
+    } catch (e) {
+      // Если SVG не удается отобразить, показываем ошибку
+      return Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.red.shade50,
+          border: Border.all(color: Colors.red.shade200),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.error, color: Colors.red.shade400),
+            const SizedBox(height: 4),
+            Text(
+              'Ошибка отображения SVG',
+              style: TextStyle(
+                color: Colors.red.shade600,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   @override
